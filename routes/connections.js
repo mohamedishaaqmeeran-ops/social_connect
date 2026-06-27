@@ -1,88 +1,77 @@
 const express = require("express");
-const fs      = require("fs");
-const path    = require("path");
+const router  = express.Router();
+const pool    = require("../db");
 
-const router   = express.Router();
-const DB_PATH  = path.join(__dirname, "../data/connections.json");
-
-// Helper to read the JSON file
-function readDB() {
-  const raw = fs.readFileSync(DB_PATH, "utf-8");
-  return JSON.parse(raw);
-}
-
-// Helper to write to the JSON file
-function writeDB(data) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-}
-
-// GET /connections — get all connected platforms for a user
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const db          = readDB();
-    const { userId }  = req.query;
-    const userConns   = db.connections.filter(c => c.userId === userId);
-    res.json({ connections: userConns });
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+    const result = await pool.query(
+      "SELECT platform, connected_at FROM connections WHERE user_id = $1",
+      [userId]
+    );
+    res.json({ connections: result.rows });
   } catch (err) {
-    res.status(500).json({ error: "Failed to read connections" });
+    console.error("GET /connections error:", err.message);
+    res.status(500).json({ error: "Failed to get connections" });
   }
 });
 
-// POST /connections — save a new connection
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { userId, platform, accessToken } = req.body;
-
     if (!userId || !platform) {
       return res.status(400).json({ error: "userId and platform are required" });
     }
-
-    const db = readDB();
-
-    // Check if already connected — update if yes
-    const existing = db.connections.findIndex(
-      c => c.userId === userId && c.platform === platform
+    await pool.query(
+      `INSERT INTO connections (user_id, platform)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, platform) DO UPDATE
+       SET connected_at = CURRENT_TIMESTAMP`,
+      [userId, platform]
     );
-
-    if (existing >= 0) {
-      db.connections[existing] = {
-        ...db.connections[existing],
-        accessToken,
-        connectedAt: new Date().toISOString(),
-      };
-    } else {
-      // Add new connection
-      db.connections.push({
-        userId,
-        platform,
-        accessToken,
-        connectedAt: new Date().toISOString(),
-      });
+    if (accessToken) {
+      await pool.query(
+        `INSERT INTO oauth_tokens (user_id, platform, access_token)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, platform) DO UPDATE
+         SET access_token = $3`,
+        [userId, platform, accessToken]
+      );
     }
-
-    writeDB(db);
-    res.json({ success: true, message: `${platform} connected successfully!` });
-
+    res.json({
+      success: true,
+      message: `${platform} connected successfully!`
+    });
   } catch (err) {
+    console.error("POST /connections error:", err.message);
     res.status(500).json({ error: "Failed to save connection" });
   }
 });
 
-// DELETE /connections/:platform — disconnect a platform
-router.delete("/:platform", (req, res) => {
+router.delete("/:platform", async (req, res) => {
   try {
-    const { platform }  = req.params;
-    const { userId }    = req.body;
-    const db            = readDB();
-
-    db.connections = db.connections.filter(
-      c => !(c.userId === userId && c.platform === platform)
+    const { platform } = req.params;
+    const { userId }   = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+    await pool.query(
+      "DELETE FROM connections WHERE user_id = $1 AND platform = $2",
+      [userId, platform]
     );
-
-    writeDB(db);
-    res.json({ success: true, message: `${platform} disconnected!` });
-
+    await pool.query(
+      "DELETE FROM oauth_tokens WHERE user_id = $1 AND platform = $2",
+      [userId, platform]
+    );
+    res.json({
+      success: true,
+      message: `${platform} disconnected!`
+    });
   } catch (err) {
+    console.error("DELETE /connections error:", err.message);
     res.status(500).json({ error: "Failed to disconnect platform" });
   }
 });
