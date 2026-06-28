@@ -12,7 +12,7 @@ const getOAuthURL = (platform) => {
       return `https://www.facebook.com/v23.0/dialog/oauth
 ?client_id=1778915126817883
 &redirect_uri=https://social-connect-om87.onrender.com/auth/callback/facebook
-&scope=public_profile,email
+&scope=public_profile
 &response_type=code`;
     case "instagram":
       return `https://www.instagram.com/oauth/authorize?client_id=${process.env.INSTAGRAM_CLIENT_ID}&redirect_uri=http://localhost:5000/auth/callback/instagram&scope=instagram_business_basic&response_type=code`;
