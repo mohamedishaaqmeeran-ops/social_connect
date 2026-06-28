@@ -42,18 +42,22 @@ router.get("/callback/:platform", async (req, res) => {
   const { platform } = req.params;
   const { code } = req.query;
 
-  if (!code) {
-    return res.send(`
-      <script>
+ if (!code) {
+  return res.send(`
+    <script>
+      if (window.opener) {
         window.opener.postMessage(
           { type: "OAUTH_ERROR", platform: "${platform}" },
           "${FRONTEND_URL}"
         );
         window.close();
-      </script>
-      <p>Error: No code received</p>
-    `);
-  }
+      } else {
+        window.location.href = "${FRONTEND_URL}/app/connect?error=${platform}";
+      }
+    </script>
+    <p>Error: No code received</p>
+  `);
+}
 
   try {
     await Connection.findOneAndUpdate(
@@ -71,36 +75,40 @@ router.get("/callback/:platform", async (req, res) => {
     );
 
     res.send(`
-      <html>
-        <body>
-          <p>✅ ${platform} connected! Closing...</p>
-
-          <script>
-            if (window.opener) {
-              window.opener.postMessage(
-                { type: "OAUTH_SUCCESS", platform: "${platform}" },
-                "${FRONTEND_URL}"
-              );
-            }
-
-            setTimeout(() => window.close(), 500);
-          </script>
-        </body>
-      </html>
-    `);
+  <html>
+    <body>
+      <p>✅ ${platform} connected! Redirecting...</p>
+      <script>
+        if (window.opener) {
+          window.opener.postMessage(
+            { type: "OAUTH_SUCCESS", platform: "${platform}" },
+            "https://twinn.live"
+          );
+          setTimeout(() => window.close(), 500);
+        } else {
+          window.location.href = "https://twinn.live/app/connect?connected=${platform}";
+        }
+      </script>
+    </body>
+  </html>
+`);
   } catch (err) {
     console.error(`Failed to save ${platform}:`, err.message);
 
-    res.send(`
-      <script>
-        window.opener.postMessage(
-          { type: "OAUTH_ERROR", platform: "${platform}" },
-          "${FRONTEND_URL}"
-        );
-        window.close();
-      </script>
-      <p>Error saving connection</p>
-    `);
+   res.send(`
+  <script>
+    if (window.opener) {
+      window.opener.postMessage(
+        { type: "OAUTH_ERROR", platform: "${platform}" },
+        "${FRONTEND_URL}"
+      );
+      window.close();
+    } else {
+      window.location.href = "${FRONTEND_URL}/app/connect?error=${platform}";
+    }
+  </script>
+  <p>Error saving connection</p>
+`);
   }
 });
 
