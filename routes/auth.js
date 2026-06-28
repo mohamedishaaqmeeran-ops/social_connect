@@ -4,7 +4,7 @@ const pool    = require("../db");
 const fetch   = require("node-fetch");
 require("dotenv").config();
 
-const REDIRECT_BASE = "http://localhost:5000";
+const REDIRECT_BASE = "https://social-connect-om87.onrender.com";
 
 const getOAuthURL = (platform) => {
   switch (platform) {
