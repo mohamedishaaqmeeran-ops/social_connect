@@ -6,21 +6,34 @@ const connectionSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+
     platform: {
       type: String,
       required: true,
     },
+
     accessToken: {
       type: String,
     },
+
+    username: {
+      type: String,
+      default: null,
+    },
+
     connectedAt: {
       type: Date,
       default: Date.now,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-connectionSchema.index({ userId: 1, platform: 1 }, { unique: true });
+connectionSchema.index(
+  { userId: 1, platform: 1 },
+  { unique: true }
+);
 
 module.exports = mongoose.model("Connection", connectionSchema);

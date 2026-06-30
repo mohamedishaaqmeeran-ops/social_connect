@@ -3,6 +3,7 @@ const router = express.Router();
 
 const Connection = require("../models/Connection");
 
+// GET connected platforms
 router.get("/", async (req, res) => {
   try {
     const { userId } = req.query;
@@ -12,7 +13,7 @@ router.get("/", async (req, res) => {
     }
 
     const connections = await Connection.find({ userId: Number(userId) })
-      .select("platform connectedAt -_id")
+      .select("platform connectedAt username -_id")
       .sort({ connectedAt: -1 });
 
     res.json({ connections });
@@ -22,22 +23,29 @@ router.get("/", async (req, res) => {
   }
 });
 
+// SAVE / UPDATE connection
 router.post("/", async (req, res) => {
   try {
-    const { userId, platform, accessToken } = req.body;
+    const { userId, platform, accessToken, username } = req.body;
 
     if (!userId || !platform) {
-      return res.status(400).json({ error: "userId and platform are required" });
+      return res.status(400).json({
+        error: "userId and platform are required",
+      });
     }
+
+    const updateData = {
+      userId: Number(userId),
+      platform,
+      connectedAt: new Date(),
+    };
+
+    if (accessToken) updateData.accessToken = accessToken;
+    if (username) updateData.username = username;
 
     await Connection.findOneAndUpdate(
       { userId: Number(userId), platform },
-      {
-        userId: Number(userId),
-        platform,
-        accessToken,
-        connectedAt: new Date(),
-      },
+      updateData,
       {
         upsert: true,
         new: true,
@@ -54,6 +62,7 @@ router.post("/", async (req, res) => {
   }
 });
 
+// DISCONNECT platform
 router.delete("/:platform", async (req, res) => {
   try {
     const { platform } = req.params;
